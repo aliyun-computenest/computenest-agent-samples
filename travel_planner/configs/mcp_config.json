@@ -1,0 +1,11 @@
+{
+  "mcpServers": {
+    "amap-maps": {
+      "type": "streamableHttp",
+      "baseUrl": "https://dashscope.aliyuncs.com/api/v1/mcps/amap-maps/mcp",
+      "headers": {
+        "Authorization": "Bearer ${DASHSCOPE_API_KEY}"
+      }
+    }
+  }
+}
