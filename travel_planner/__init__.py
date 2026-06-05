@@ -1,1 +1,1 @@
-# 基于 AgentScope + AgentScope Runtime 的智能旅行规划示例
+# travel_planner 2.0 — AgentScope Agent Service + 官方 Web UI

@@ -1,11 +1,10 @@
 # -*- coding: utf-8 -*-
-"""Travel Planner Agent Service 入口。
+"""Conversation Agent Service 入口。
 
-启动时初始化 Credential 与 Agent「Travel Planner」；Workspace 注入高德 MCP。
+启动时初始化 Credential 与 Agent「Conversation」。
 """
 from __future__ import annotations
 
-import asyncio
 import logging
 import os
 import uuid
@@ -29,14 +28,11 @@ from agentscope.credential import DashScopeCredential
 from agentscope.permission import PermissionContext, PermissionMode
 from agentscope.state import AgentState
 
-from tools.mcp_helpers import build_mcp_clients
-from tools.prompts import TRAVEL_PLANNER_PROMPT
-
 logging.basicConfig(
     level=os.getenv("LOG_LEVEL", "INFO").upper(),
     format="%(asctime)s %(levelname)s [%(name)s] %(message)s",
 )
-logger = logging.getLogger("travel_planner")
+logger = logging.getLogger("conversation")
 
 HOST = os.getenv("HOST", "0.0.0.0")
 PORT = int(os.getenv("PORT", "8090"))
@@ -45,10 +41,10 @@ WORKSPACE_ROOT = os.path.join(os.path.dirname(os.path.abspath(__file__)), "works
 USER_ID = "demo_user"
 CREDENTIAL_ID = "dashscope"
 CREDENTIAL_NAME = "DashScope"
-AGENT_ID = "travel_planner"
-AGENT_NAME = "Travel Planner"
+AGENT_ID = "conversation"
+AGENT_NAME = "Conversation"
 DEFAULT_SESSION_NAME = "Default"
-SYSTEM_PROMPT = TRAVEL_PLANNER_PROMPT
+SYSTEM_PROMPT = "你是一个智能助手，擅长用中文礼貌回复用户的问题。"
 
 
 def redis_storage_from_env() -> RedisStorage:
@@ -66,18 +62,6 @@ def redis_storage_from_env() -> RedisStorage:
     db = int(path) if path.isdigit() else 0
     password = parsed.password
     return RedisStorage(host=host, port=port, db=db, password=password)
-
-
-def load_default_mcps() -> list:
-    """预置高德等 MCP（连接失败时跳过）。"""
-    try:
-        return asyncio.run(build_mcp_clients(connect=False))
-    except asyncio.CancelledError as exc:
-        logger.warning("MCP 初始化跳过: %s", exc)
-        return []
-    except Exception as exc:  # noqa: BLE001
-        logger.warning("MCP 初始化跳过: %s", exc)
-        return []
 
 
 async def create_credential(storage, api_key: str) -> str:
@@ -174,17 +158,17 @@ async def lifespan(app):
 
 
 def build_app():
-    """构建 Travel Planner Agent Service。"""
+    """构建 Conversation Agent Service。"""
     storage = redis_storage_from_env()
     workspace_manager = LocalWorkspaceManager(
         basedir=WORKSPACE_ROOT,
-        default_mcps=load_default_mcps(),
+        default_mcps=[],
     )
     app = create_app(
         storage=storage,
         workspace_manager=workspace_manager,
-        title="Travel Planner",
-        version="2.0.0",
+        title="Conversation",
+        version="1.0.0",
     )
     app.router.lifespan_context = lifespan
     return app

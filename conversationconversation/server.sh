@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# travel_planner：Agent Service 启停（main.py）
+# conversation：Agent Service 启停（main.py）
 # 须配置 SESSION_REDIS_URL，见 .env.example
 
 set -euo pipefail

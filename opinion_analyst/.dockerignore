@@ -1,0 +1,8 @@
+.env
+.venv
+__pycache__
+*.py[cod]
+workspaces/
+server.log
+.agent.pid
+.dev_state.json

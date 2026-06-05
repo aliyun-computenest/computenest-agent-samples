@@ -1,130 +1,108 @@
 # 智能旅行助手
 
-## 概述
+基于 [AgentScope Agent Service](https://docs.agentscope.io/v2/deploy/agent-service.md) 的旅行规划示例：高德地图 MCP + 本地旅行知识 + 多轮对话。
 
-本示例基于 **AgentScope** 与 **AgentScope Runtime** 实现，提供智能旅行规划能力。智能体集成高德 MCP 获取 LBS 与路线规划、本地知识库（旅行安全与小众景点）、可选长期记忆（Mem0），并通过 Runtime 提供会话持久化与流式接口。
+## 这是什么
 
-## 核心功能
-
-- **行程规划**：通过高德 MCP 生成交通、餐饮、住宿与景点推荐。
-- **旅行知识库**：本地 RAG（SimpleKnowledge + 本地 Markdown），提供安全贴士与小众景点推荐。
-- **长期记忆（可选）**：启用后使用 Mem0 记录用户偏好，实现个性化推荐。
-- **会话记忆**：Runtime Session（JSON 文件或 Redis）持久化当前会话。
+- 行程规划：结合目的地知识、路线与 POI，生成含餐饮、住宿的每日安排
+- 高德 MCP：路线、周边搜索、实时交通等地理信息
+- 本地知识：`knowledgebase_docs/` 中的旅行安全与小众景点推荐
+- **计算巢一键开箱部署**：浏览器 Web UI（端口 5173）
 
 ## 目录结构
 
 ```text
 travel_planner/
-├── README.md
-├── __init__.py
-├── main.py               # AgentScope + AgentScope Runtime 入口
-├── server.sh             # 服务控制脚本 start/stop/restart/status
-├── client.py             # 测试客户端（/process SSE）
+├── main.py                 # 服务入口
+├── client.py               # 本地测试：创建 Session + 流式对话
+├── server.sh               # Agent 启停
 ├── requirements.txt
-├── configs/
-│   └── mcp_config.json   # MCP 配置（高德等）
-├── knowledgebase_docs/   # 知识库 Markdown
+├── .env.example
+├── configs/mcp_config.json # 高德 MCP（百炼 amap-maps）
+├── knowledgebase_docs/     # 旅行知识 Markdown
 │   ├── general_safety_guide.md
 │   └── tourists_recommend.md
-├── tools/
-│   ├── __init__.py
-│   └── mcp_helpers.py    # MCP 客户端注册
-└── sessions/             # 默认会话存储目录（JSON 时）
+└── tools/
+    ├── mcp_helpers.py
+    └── prompts.py
 ```
 
-## 计算巢部署
+## 如何使用
 
-通过阿里云计算巢可一键部署本示例，无需在本地安装环境：
+### 计算巢部署
 
-1. **点击立即部署**：打开 [计算巢 智能旅行助手 部署页](https://computenest.console.aliyun.com/agent/deploy/cn-hangzhou/TravelPlanner?serviceId=service-693904e6ce8943f49a3b&TemplateName=%E5%B8%82%E5%9C%BA%E6%A8%A1%E6%9D%BF)，点击「立即部署」。
-2. **填写并创建**：按页面提示填写参数（如 `DASHSCOPE_API_KEY` 等），点击「立即创建」。
-3. **访问实例**：创建完成后跳转至实例页面，可通过命令行或前端 Web 进入并使用 Agent 服务。
+通过阿里云计算巢一键部署，无需本地安装环境：
 
-<div style="text-align: center; margin: 16px 0;">
-  <img src="https://service-info-public.oss-cn-hangzhou.aliyuncs.com/agent/docs/image_cn/ApplicationDetails.jpg" alt="应用详情" style="max-width: 100%; border-radius: 6px; box-shadow: 0 2px 8px rgba(0,0,0,0.1);">
-</div>
-进入WebUI，直接对话。
-<div style="text-align: center; margin: 16px 0;">
-  <img src="https://service-info-public.oss-cn-hangzhou.aliyuncs.com/agent/docs/image_cn/WeiUI.jpg" alt="WebUI" style="max-width: 100%; border-radius: 6px; box-shadow: 0 2px 8px rgba(0,0,0,0.1);">
-</div>
+1. **立即部署**：打开 [计算巢 智能旅行助手 部署页](https://computenest.console.aliyun.com/agent/deploy/cn-hangzhou/TravelPlanner?serviceId=service-693904e6ce8943f49a3b&TemplateName=%E5%B8%82%E5%9C%BA%E6%A8%A1%E6%9D%BF)，点击「立即部署」。
+2. **填写并创建**：填写 `DASHSCOPE_API_KEY` 等参数，点击「立即创建」。
+3. **访问实例**：在实例页「应用输出」查看 **WebUI 访问地址**（端口 **5173**）与 **API 调用示例**（`POST /chat/`）。
 
-## 本地运行
+创建完成后，在实例详情页「应用输出」中可看到：
 
-### 环境准备
+- **WebUI 访问地址**：浏览器打开 `http://<实例IP>:5173`，Username 使用 `demo_user`。
+- **API 调用示例**：向 `http://<实例IP>:8090/chat/` 发消息，请求头 `X-User-ID: demo_user`，body 需 `agent_id=travel_planner` 与 `session_id`（可在 Web UI 查看，或 `POST /sessions/` 创建）。OpenAPI：`http://<实例IP>:8090/docs`。
 
-#### 1. Python
+**Redis（ECS）**：使用环境变量中的 `SESSION_REDIS_URL`；未配置时使用默认 `redis://127.0.0.1:6379/0`。
 
-建议 Python 3.10+。
+**Redis（容器集群）**：必须在环境变量中配置 `SESSION_REDIS_URL`。
 
-#### 2. 依赖安装
+### 本地运行
+
+**环境要求**
+
+- Python ≥ 3.11
+- [DashScope API Key](https://help.aliyun.com/zh/model-studio/)
+- Redis（须配置 `SESSION_REDIS_URL`）
+- 已在[百炼 MCP 市场](https://bailian.console.aliyun.com/?tab=app#/mcp-market/detail/amap-maps)开通 **amap-maps**
+
+**安装与启动**
 
 ```bash
 cd travel_planner
+python3.12 -m venv .venv && source .venv/bin/activate
 pip install -r requirements.txt
+
+cp .env.example .env
+# 编辑 .env：DASHSCOPE_API_KEY、SESSION_REDIS_URL
+
+chmod +x server.sh
+./server.sh start
 ```
 
-#### 3. 环境变量
+- 服务：http://127.0.0.1:8090
+- API 文档：http://127.0.0.1:8090/docs
 
-可复制 `travel_planner/.env.example` 为 `.env` 后按需填写（`cp .env.example .env`），或在项目根目录 / `travel_planner` 下直接创建 `.env`，也可在终端 `export`：
+**本地测试对话**
 
-| 变量 | 必填 | 说明 |
-|------|------|------|
-| `DASHSCOPE_API_KEY` | 是 | 阿里云 DashScope API Key；用于模型、知识库/长期记忆嵌入，以及 MCP 配置中的高德服务鉴权（`configs/mcp_config.json` 里的 `Authorization: Bearer ${DASHSCOPE_API_KEY}` 会从环境变量读取） |
-| `DASHSCOPE_MODEL_NAME` | 否 | 对话模型，默认 `qwen-max` |
-| `SESSION_TYPE` | 否 | `json`（默认）或 `redis` |
-| `SESSION_REDIS_URL` | 否 | 当 `SESSION_TYPE=redis` 时必填，如 `redis://localhost:6379/0` |
-| `TRAVEL_PLANNER_USE_LONG_TERM_MEMORY` | 否 | 设为 `1`/`true`/`yes` 时启用 Mem0 长期记忆（需 DashScope） |
-
-高德能力通过阿里云百炼的 amap-maps MCP 服务提供，使用上述 `DASHSCOPE_API_KEY` 鉴权即可，无需单独申请高德 Key。**使用前需在百炼 MCP 市场开通高德（amap-maps）方可生效**，开通地址：[百炼 MCP 市场 - 高德 amap-maps](https://bailian.console.aliyun.com/cn-beijing/?spm=5176.24779694.console-base_search-panel.dtab-product_sfm.2e9b4d22SkTaYy&tab=app#/mcp-market/detail/amap-maps)。
-
-**MCP 配置说明**（`configs/mcp_config.json`）：
-
-- **type**：传输类型，百炼只有两种——`sse`（地址多为 `.../sse`）或 `streamableHttp`（地址多为 `.../mcp`）。代码会据此创建对应的 MCP 客户端（内部对应 AgentScope 的 `transport` 参数，无需在配置里写 `transport`）。
-- **baseUrl**：二选一，服务地址；`baseUrl` 与百炼控制台一致。
-- **headers**：如 `Authorization: Bearer ${DASHSCOPE_API_KEY}` 会从环境变量读取并替换。
-
-### 运行
-
-#### 启动服务
+另开终端运行 `client.py`；使用预置 `agent_id=travel_planner`，每次运行会新建 Session。
 
 ```bash
-cd travel_planner
-python main.py
-```
-
-默认监听 `http://0.0.0.0:8090`。
-
-也可使用控制脚本：
-
-```bash
-./server.sh start    # 启动（后台，日志写入 server.log）
-./server.sh stop     # 停止
-./server.sh restart  # 重启
-./server.sh status   # 查看状态
-```
-
-#### 测试客户端
-
-```bash
-# 确保服务已启动
+source .venv/bin/activate
 python client.py
 ```
 
-可修改 `client.py` 中的 `BASE_URL`、`USER_ID`、`SESSION_ID` 以及 `main()` 中的示例提示词。
-
-## 示例提示词
+**示例提问**
 
 - 元旦去哈尔滨旅行，帮我规划下 5 天 4 晚的行程，兼顾冰雪大世界、中央大街和东北美食
 - 清明假期去杭州 3 天，除了西湖、灵隐寺，还想加 1 天西溪湿地徒步，该怎么规划每日行程？
-- 五一去成都玩 3 天，想打卡宽窄巷子、熊猫基地，再安排 1 天都江堰或青城山，行程怎么分配？
 
-## 常见问题
+## 环境变量
 
-- **高德 MCP 报错**：需先在[百炼 MCP 市场](https://bailian.console.aliyun.com/cn-beijing/?spm=5176.24779694.console-base_search-panel.dtab-product_sfm.2e9b4d22SkTaYy&tab=app#/mcp-market/detail/amap-maps)开通高德（amap-maps）；并确认 `DASHSCOPE_API_KEY` 已设置，鉴权依赖该 Key。
-- **知识库未生效**：确认 `DASHSCOPE_API_KEY` 有效，且 `knowledgebase_docs/` 下存在 `.md` 文件。
-- **长期记忆**：需设置 `TRAVEL_PLANNER_USE_LONG_TERM_MEMORY=1`，并保证 DashScope 可用。
+| 变量 | 说明 | 默认 |
+|------|------|------|
+| `DASHSCOPE_API_KEY` | 百炼 API Key | 必填 |
+| `DASHSCOPE_MODEL_NAME` | 对话模型 | `qwen3.7-max` |
+| `SESSION_REDIS_URL` | Redis 地址 | 必填；ECS 默认 `redis://127.0.0.1:6379/0` |
+| `HOST` / `PORT` | HTTP 监听 | `0.0.0.0` / `8090` |
+| `CREATE_DEFAULT_SESSION` | 设为 `1` 时启动预建 Session「Default」 | `0`（计算巢部署为 `1`） |
 
-## 参考资料
+复制并按需修改：
 
-- [AgentScope 文档](https://doc.agentscope.io/)
-- [AgentScope Runtime](https://runtime.agentscope.io/)
+```bash
+cp .env.example .env
+```
+
+## 参考
+
+- [AgentScope 快速开始](https://docs.agentscope.io/zh/v2/quickstart)
+- [Agent Service 文档](https://docs.agentscope.io/v2/deploy/agent-service.md)

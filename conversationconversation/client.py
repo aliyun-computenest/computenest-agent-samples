@@ -1,5 +1,5 @@
 # -*- coding: utf-8 -*-
-"""Stock Analyst 本地 API 测试：使用预置 Agent → 创建 Session → 流式对话。
+"""Conversation 本地 API 测试：使用预置 Agent → 创建 Session → 发两轮对话。
 
 先启动服务（python main.py 或 ./server.sh start），再运行本脚本。
 每次运行都会创建新 Session。
@@ -19,14 +19,9 @@ load_dotenv()
 _port = (os.getenv("PORT") or "8090").strip()
 BASE_URL = f"http://127.0.0.1:{_port}".rstrip("/")
 USER_ID = "demo_user"
-AGENT_ID = "stock_analyst"
+# 与 main.py 预置 id 一致
+AGENT_ID = "conversation"
 CREDENTIAL_ID = "dashscope"
-
-EXAMPLE_QUERY = (
-    "请先使用联网搜索检索阿里巴巴（9988.HK / BABA）最近一周公开行情与新闻，"
-    "再输出：数据分析（价量与关键数字）、走势预测（多情景）、"
-    "投资参考建议（含风险与免责）。不要凭记忆编造数字。"
-)
 
 
 def headers() -> dict[str, str]:
@@ -93,26 +88,24 @@ async def chat(
                 event = json.loads(payload)
             except json.JSONDecodeError:
                 continue
-            etype = event.get("type")
-            if etype == "TEXT_BLOCK_DELTA":
+            if event.get("type") == "TEXT_BLOCK_DELTA":
                 print(event.get("delta", ""), end="", flush=True)
-            elif etype == "REPLY_END":
+            elif event.get("type") == "REPLY_END":
                 print()
-            elif etype in ("TOOL_CALL_START", "TOOL_RESULT_END"):
-                print(f"\n  [{etype}]")
 
 
 async def main() -> None:
-    async with httpx.AsyncClient(base_url=BASE_URL, timeout=300.0) as client:
+    async with httpx.AsyncClient(base_url=BASE_URL, timeout=120.0) as client:
         # Step 0: 获取 Agent
         agent_id = await get_agent_id(client)
 
         # Step 1: 创建 Session
         session_id = await get_session_id(client, agent_id)
 
-        # Step 2: 流式对话
+        # Step 2: 流式对话（同一会话内发两轮消息）
         print(f"agent_id={agent_id} session_id={session_id}")
-        await chat(client, agent_id, session_id, EXAMPLE_QUERY)
+        await chat(client, agent_id, session_id, "我叫 AgentScope")
+        await chat(client, agent_id, session_id, "你还记得我叫什么吗？")
 
 
 if __name__ == "__main__":
