@@ -1,199 +1,104 @@
-# Conversation — Minimal chat agent
+# Conversation — Multi-turn Chat
 
-An entry-level conversational agent on **AgentScope** and **AgentScope Runtime**, showing how to build a basic AI agent with short-term memory.
+A conversation sample built on [AgentScope Agent Service](https://docs.agentscope.io/v2/deploy/agent-service.md): on service startup, a Credential and an Agent are created automatically, and a default Session can be pre-built on demand.
 
-## Overview
+## What This Is
 
-This sample is AgentScope’s “Conversation” example: minimal agent construction and HTTP exposure.
+- Smart chat: polite Chinese replies with multi-turn context support
+- Service bootstrap: once `DASHSCOPE_API_KEY` is configured, Credential and Agent are created automatically
+- **One-click deployment on Compute Nest**: in-browser Web UI (port 5173); a pre-built Session "Default" is provided for out-of-the-box chatting
 
-## Features
 
-- Simple dialogue agent (no tools)
-- Session-based context (short-term memory)
-- Multi-turn recall
-- HTTP SSE streaming via AgentScope Runtime
-
-## Agent flow
-
-```text
-User message
-    ↓
-AgentScope Runtime (AgentApp)
-    ↓
-Hello World Agent
-    ├── ReActAgent (dialogue engine)
-    ├── RedisSession / InMemoryMemory (session memory)
-    └── Tongyi Qwen, etc. (LLM)
-```
-
-## Core components
-
-| Component | Description |
-|-----------|-------------|
-| **Agent service** | [main.py](main.py) — `AgentApp` and query handling |
-| **Test client** | [client.py](client.py) — SSE client for `/process` |
-| **Project config** | [pyproject.toml](pyproject.toml) — dependencies (optional uv) |
-| **Requirements** | [requirements.txt](requirements.txt) — pip install |
-
-**`AgentApp` and query** ([main.py](main.py)):
-
-```python
-agent_app = AgentApp(
-    app_name="conversation",
-    app_description="Hello World dialogue agent with short-term memory",
-    lifespan=lifespan,
-)
-
-@agent_app.query(framework="agentscope")
-async def query_func(self, msgs, request: AgentRequest = None, **kwargs):
-    # load/save session state, run ReActAgent, stream yield
-```
-
-**Multi-turn test** ([client.py](client.py)):
-
-```python
-await send_request("My name is AgentScope")
-await send_request("Do you remember my name?")
-```
-
-## Directory layout
+## Directory Structure
 
 ```text
 conversation/
-├── main.py
-├── client.py
-├── server.sh
-├── requirements.txt
-├── pyproject.toml
-└── README.md
+├── main.py            # Service entry (creates Credential / Agent / optional Session)
+├── client.py          # Local API test: creates a Session and sends two-turn chat
+├── server.sh          # Agent start / stop
+├── requirements.txt   # Python dependencies
+├── .env.example       # Environment variables example
+└── .dockerignore      # Excludes .venv / .env / logs from Docker images
 ```
 
-## Alibaba Cloud Compute Nest
+## Usage
 
-One-click deploy (console UI may be in Chinese):
+### Compute Nest Deployment
 
-1. Open the [Compute Nest Conversation deploy page](https://computenest.console.aliyun.com/agent/deploy/cn-hangzhou/ConversationSample?serviceId=service-693904e6ce8943f49a3b&TemplateName=%E5%B8%82%E5%9C%BA%E6%A8%A1%E6%9D%BF) and start deployment.
-2. Fill in parameters and create the instance.
-3. Use CLI or Web UI on the instance page.
+Deploy with one click via Alibaba Cloud Compute Nest — no local environment required:
 
-<div style="text-align: center; margin: 16px 0;">
-  <img src="https://service-info-public.oss-cn-hangzhou.aliyuncs.com/agent/docs/image_cn/ApplicationDetails.jpg" alt="Application details" style="max-width: 100%; border-radius: 6px; box-shadow: 0 2px 8px rgba(0,0,0,0.1);">
-</div>
+1. **Deploy Now**: open the [Compute Nest Conversation deployment page](https://computenest.console.aliyun.com/agent/deploy/cn-hangzhou/Conversation?serviceId=service-9503f4817acb4f08b948&deployType=ECS&TemplateName=%E6%A8%A1%E6%9D%BF1) and click "Deploy Now".
+2. **Fill in & Create**: provide parameters such as `DASHSCOPE_API_KEY` and click "Create Now".
+3. **Access the Instance**: on the instance page, check **Application Outputs** for the **WebUI Access URL** (port **5173**) and the **API Call Example** (`POST /chat/`).
 
-Open Web UI and chat.
+After creation, the instance detail page's "Application Outputs" panel shows:
 
-<div style="text-align: center; margin: 16px 0;">
-  <img src="https://service-info-public.oss-cn-hangzhou.aliyuncs.com/agent/docs/image_cn/WeiUI.jpg" alt="Web UI" style="max-width: 100%; border-radius: 6px; box-shadow: 0 2px 8px rgba(0,0,0,0.1);">
-</div>
+- **WebUI Access URL**: open `http://<instance-ip>:5173` in your browser, using `demo_user` as Username.
+- **API Call Example**: send a message to `http://<instance-ip>:8090/chat/` with header `X-User-ID: demo_user`. The body must contain `agent_id=conversation` and `session_id` (visible in the Web UI, or create one via `POST /sessions/`). OpenAPI: `http://<instance-ip>:8090/docs`.
 
-## Local run
+**Redis (ECS)**: uses `SESSION_REDIS_URL` from environment variables; falls back to `redis://127.0.0.1:6379/0` when unset.
 
-### Prerequisites
+**Redis (container cluster)**: `SESSION_REDIS_URL` MUST be configured in environment variables.
 
-1. **Model API**: Alibaba Bailian (DashScope / Tongyi Qwen) — set `DASHSCOPE_API_KEY`.
-2. Create a key in the [Bailian console](https://bailian.console.aliyun.com/).
+### Local Setup
 
-### Install
+**Requirements**
+
+- Python ≥ 3.11
+- [DashScope API Key](https://help.aliyun.com/zh/model-studio/)
+- Redis (must configure `SESSION_REDIS_URL`, see below)
+
+**Install & Start**
 
 ```bash
 cd conversation
+python3.12 -m venv .venv && source .venv/bin/activate
 pip install -r requirements.txt
+
+cp .env.example .env
+# Edit .env: DASHSCOPE_API_KEY, SESSION_REDIS_URL
+
+chmod +x server.sh
+./server.sh start
 ```
 
-Or with uv:
+- Service: http://127.0.0.1:8090
+- API docs: http://127.0.0.1:8090/docs
+
+If you do not have Redis locally, start an instance first and write the URL into `.env`, e.g.:
 
 ```bash
-uv venv --python 3.12
-uv sync --index-url https://pypi.tuna.tsinghua.edu.cn/simple
+export SESSION_REDIS_URL=redis://localhost:6379/0
+```
+
+**Local Test Chat**
+
+In a separate terminal, run `client.py`: it uses the pre-registered `agent_id=conversation`; each run creates a fresh Session (with its own `workspace_id`) and sends two messages within the same session to test multi-turn memory.
+
+```bash
 source .venv/bin/activate
+python client.py
 ```
 
-### Environment variables
+For local development, use `client.py` to test chat. The Web UI is only accessible on a Compute Nest instance via the address shown in "Application Outputs" (port 5173).
 
-| Variable | Description | Required | Default |
-|----------|-------------|----------|---------|
-| `DASHSCOPE_API_KEY` | Bailian (Tongyi) API key | Yes | — |
-| `SESSION_TYPE` | `json` (local file) or `redis` | No | `json` |
-| `SESSION_REDIS_URL` | Redis URL when `SESSION_TYPE=redis` | If redis | — |
+## Environment Variables
 
-- **JSON mode** (default): omit or set `SESSION_TYPE=json`; no extra services.
-- **Redis mode**: set `SESSION_TYPE=redis` and `SESSION_REDIS_URL`, e.g. `redis://localhost:6379/0`.
+| Variable | Description | Default |
+|----------|-------------|---------|
+| `DASHSCOPE_API_KEY` | Bailian (DashScope) API key | Required |
+| `DASHSCOPE_MODEL_NAME` | Chat model | `qwen3.7-max` |
+| `SESSION_REDIS_URL` | Redis URL | Required; defaults to `redis://127.0.0.1:6379/0` on ECS |
+| `HOST` / `PORT` | HTTP listen address | `0.0.0.0` / `8090` |
+| `CREATE_DEFAULT_SESSION` | When set to `1`, create a Session named "Default" on every service start (id auto-generated) | `0` (Compute Nest deployment uses `1`) |
 
-Example:
+Copy and adjust as needed:
 
 ```bash
-export DASHSCOPE_API_KEY="<your API key>"
-# export SESSION_TYPE=redis
-# export SESSION_REDIS_URL=redis://localhost:6379/0
+cp .env.example .env
 ```
-
-### Start and test
-
-```bash
-python main.py   # default http://0.0.0.0:8090
-python client.py # another terminal
-```
-
-**Sample output**:
-
-```text
-[run agent] Sending: My name is AgentScope
-...
-[run agent] Sending: Do you remember my name?
-...
-```
-
-## Technical notes
-
-### Short-term memory
-
-- **Storage**: default `JSONSession` (local files); `RedisSession` when `SESSION_TYPE=redis`.
-- **Scope**: isolated by `session_id` / `user_id`.
-- **Lifecycle**: `load_session_state` / `save_session_state` persist agent state across requests.
-
-### Multi-turn dialogue
-
-- Client sends stable or passed `session_id` and `user_id`.
-- Server loads session, runs agent, saves session.
-- Agent uses `InMemoryMemory` with loaded history for each reply.
-
-### AgentScope Runtime
-
-- `AgentApp` + `@agent_app.query(framework="agentscope")`.
-- `lifespan` initializes `app.state.session` (JSON or Redis) from env.
-- Streaming via async generator `yield msg, last` → SSE.
-
-## Sample prompts
-
-**Short-term memory**:
-
-```text
-User: My name is AgentScope
-Agent: Hello AgentScope! Nice to meet you.
-
-User: Do you remember my name?
-Agent: Yes, you are AgentScope.
-```
-
-**Fact recall**:
-
-```text
-User: I am 25 and I like programming
-User: How old am I? What are my hobbies?
-Agent: You are 25 and you like programming.
-```
-
-## FAQ
-
-- **No `DASHSCOPE_API_KEY`**: set a valid key in the environment.
-- **Connection refused**: start `main.py` first; align `BASE_URL` in `client.py` with the server.
 
 ## References
 
-- [AgentScope docs](https://doc.agentscope.io/)
-- [AgentScope Runtime](https://runtime.agentscope.io/)
-- [Alibaba Bailian / DashScope](https://bailian.console.aliyun.com/)
-
-## License
-
-Same as the repository root (e.g. Apache 2.0).
+- [AgentScope Quickstart](https://docs.agentscope.io/en/v2/quickstart)
+- [Agent Service Documentation](https://docs.agentscope.io/v2/deploy/agent-service.md)

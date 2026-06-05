@@ -1,137 +1,102 @@
-# Opinion deep research assistant
+# Opinion Analyst
 
-## Overview
+A Deep Research opinion-analysis sample built on [AgentScope Agent Service](https://docs.agentscope.io/v2/deploy/agent-service.md): Bailian WebSearch MCP + multi-round web search and structured assessment. The output is for reference only and does not constitute legal, investment, or PR advice.
 
-This sample uses [**AgentScope**](https://doc.agentscope.io/) and [**AgentScope Runtime**](https://runtime.agentscope.io/) to run **multi-round public web research** on brands, events, or topics, and produce a **structured opinion draft** (background, viewpoints, risks, information gaps, etc.).
+## What This Is
 
-The agent is **`OpinionDeepResearchAgent`**: **subtask breakdown → programmatic multi-round Bailian web search → extra search rounds (when needed) → interim summaries → streaming final report**. **`main.py`** registers Runtime, mounts **Web Search MCP** and `execute_python_code`, shares **`DASHSCOPE_API_KEY`**, streams on **`/process`**, and persists sessions to **JSON** or **Redis**.
+- Multi-round web search: step-by-step search and cross-verification on brands, events, policies, and other topics
+- Structured report: background timeline, opinion spectrum, risks, and information gaps
+- **One-click deployment on Compute Nest**: in-browser Web UI (port 5173)
 
-**Disclaimer**: Reports are AI-synthesized from search snippets; **for learning or internal discussion only** — not legal advice, investment advice, or a formal PR plan. Verify important conclusions against original pages.
-
-## Features
-
-- **Deep search orchestration**: sub-questions and query terms, round-based web search, optional extra queries from results.
-- **Public sources**: Bailian **Web Search MCP** for page snippets (enable in console).
-- **Auxiliary analysis**: optional `execute_python_code` for simple stats — must `print` output.
-- **Session memory**: Runtime session (JSON or Redis) for agent state in the chat.
-
-## Directory layout
+## Directory Structure
 
 ```text
 opinion_analyst/
-├── README.md
-├── __init__.py
-├── main.py               # Runtime entry (default port below)
-├── agent.py              # OpinionDeepResearchAgent: breakdown / search / extra rounds / draft
-├── server.sh             # start / stop / restart / status
-├── client.py             # Test client (/process SSE)
+├── main.py                 # Service entry
+├── client.py               # Local test: create Session + streaming chat
+├── server.sh               # Agent start / stop
 ├── requirements.txt
 ├── .env.example
-├── configs/
-│   └── mcp_config.json   # Bailian WebSearch MCP (SSE + Bearer)
-├── tools/
-│   ├── __init__.py
-│   └── mcp_helpers.py
-├── workspace/            # Optional intermediate files if file tools are used
-└── sessions/             # Default when SESSION_TYPE=json
+├── configs/mcp_config.json # Bailian WebSearch MCP
+└── tools/
+    ├── mcp_helpers.py
+    └── prompts.py          # Deep Research system prompt
 ```
 
-**`main.py` vs `agent.py`**: run `python main.py`; `agent.py` only defines the agent class — **do not run it alone**.
+## Usage
 
-## Alibaba Cloud Compute Nest
+### Compute Nest Deployment
 
-1. Open the [Compute Nest Opinion Analyst page](https://computenest.console.aliyun.com/agent/deploy/cn-hangzhou/OpinionAnalyst?serviceId=service-693904e6ce8943f49a3b&TemplateName=%E5%B8%82%E5%9C%BA%E6%A8%A1%E6%9D%BF) and deploy.
-2. Fill parameters (e.g. `DASHSCOPE_API_KEY`) and create.
-3. Use CLI or Web UI on the instance.
+Deploy with one click via Alibaba Cloud Compute Nest — no local environment required:
 
-<div style="text-align: center; margin: 16px 0;">
-  <img src="https://service-info-public.oss-cn-hangzhou.aliyuncs.com/agent/docs/image_cn/ApplicationDetails.jpg" alt="Application details" style="max-width: 100%; border-radius: 6px; box-shadow: 0 2px 8px rgba(0,0,0,0.1);">
-</div>
+1. **Deploy Now**: open the [Compute Nest Opinion Deep Research deployment page](https://computenest.console.aliyun.com/agent/deploy/cn-hangzhou/OpinionAnalyst?serviceId=service-693904e6ce8943f49a3b&TemplateName=%E5%B8%82%E5%9C%BA%E6%A8%A1%E6%9D%BF) and click "Deploy Now".
+2. **Fill in & Create**: provide parameters such as `DASHSCOPE_API_KEY` and click "Create Now".
+3. **Access the Instance**: on the instance page, check **Application Outputs** for the **WebUI Access URL** (port **5173**) and the **API Call Example** (`POST /chat/`).
 
-Use Web UI to chat.
+After creation, the instance detail page's "Application Outputs" panel shows:
 
-<div style="text-align: center; margin: 16px 0;">
-  <img src="https://service-info-public.oss-cn-hangzhou.aliyuncs.com/agent/docs/image_cn/WeiUI.jpg" alt="Web UI" style="max-width: 100%; border-radius: 6px; box-shadow: 0 2px 8px rgba(0,0,0,0.1);">
-</div>
+- **WebUI Access URL**: open `http://<instance-ip>:5173` in your browser, using `demo_user` as Username.
+- **API Call Example**: send a message to `http://<instance-ip>:8090/chat/` with header `X-User-ID: demo_user`. The body must contain `agent_id=opinion_analyst` and `session_id` (visible in the Web UI, or create one via `POST /sessions/`). OpenAPI: `http://<instance-ip>:8090/docs`.
 
-## Local run
+**Redis (ECS)**: uses `SESSION_REDIS_URL` from environment variables; falls back to `redis://127.0.0.1:6379/0` when unset.
 
-### Environment
+**Redis (container cluster)**: `SESSION_REDIS_URL` MUST be configured in environment variables.
 
-#### Python
+### Local Setup
 
-Python 3.10+ recommended.
+**Requirements**
 
-#### Dependencies
+- Python ≥ 3.11
+- [DashScope API Key](https://help.aliyun.com/zh/model-studio/)
+- Redis (must configure `SESSION_REDIS_URL`)
+
+**Install & Start**
 
 ```bash
 cd opinion_analyst
+python3.12 -m venv .venv && source .venv/bin/activate
 pip install -r requirements.txt
-```
 
-#### Environment variables
+cp .env.example .env
+# Edit .env: DASHSCOPE_API_KEY, SESSION_REDIS_URL
 
-Copy `opinion_analyst/.env.example` to `.env` (`cp .env.example .env`), or `export`:
-
-| Variable | Required | Description |
-|----------|----------|-------------|
-| `DASHSCOPE_API_KEY` | Yes | Bailian key (`sk-...`) for the model and Web Search MCP |
-| `DASHSCOPE_MODEL_NAME` | No | Default `qwen-max`; larger context may help complex topics |
-| `SESSION_TYPE` | No | `json` (default) or `redis` |
-| `SESSION_REDIS_URL` | If redis | Required when using Redis |
-| `OPINION_SEARCH_TOOL_NAME` | No | Usually leave empty. Set **only** if auto-selection picks the wrong tool or startup errors say no web-search tool was found: in the Bailian console open **MCP** → **Web Search** (the one you enabled), find the tool’s `function.name` (case-sensitive) in the docs or debug view, and paste it here. Details and an example placeholder are in `.env.example` (comments are in Chinese; meaning is the same). |
-
-#### Enable Bailian “Web Search” MCP
-
-1. [Bailian MCP market](https://bailian.console.aliyun.com/cn-beijing/?tab=app#/mcp-market) — enable **Web Search**.
-2. `configs/mcp_config.json` defaults to **SSE**, aligned with [Web Search MCP docs](https://help.aliyun.com/zh/model-studio/web-search-for-coding-plan). On **405**, keep SSE or upgrade the client per docs.
-
-#### MCP config (`configs/mcp_config.json`)
-
-Same pattern as other samples in this repo: remote service with `baseUrl` + `type` (default `sse`) + `headers` (`Bearer ${DASHSCOPE_API_KEY}`). Merge other MCPs as needed; `tools/mcp_helpers.py` registers from config.
-
-### Run
-
-#### Start server
-
-```bash
-cd opinion_analyst
-python main.py
-```
-
-Default: **`http://0.0.0.0:8090`**. If the port conflicts, change `agent_app.run` in `main.py` and `BASE_URL` in `client.py`.
-
-Or:
-
-```bash
 chmod +x server.sh
 ./server.sh start
-./server.sh status
-./server.sh stop
 ```
 
-#### Test client
+- Service: http://127.0.0.1:8090
+- API docs: http://127.0.0.1:8090/docs
+
+**Local Test Chat**
+
+In a separate terminal, run `client.py`: it uses the pre-registered `agent_id=opinion_analyst` and creates a fresh Session per run.
 
 ```bash
+source .venv/bin/activate
 python client.py
 ```
 
-Edit sample questions and `BASE_URL` / `SESSION_ID` in `client.py` as needed.
+### Example Prompts
 
-## Sample prompts
+- First retrieve Chinese-language reports and discussions about a given brand from the past two weeks, then output an opinion analysis (background, opinion spectrum, risks, information gaps).
 
-- For “brand X”, last two weeks of Chinese coverage and discussion: sub-questions, search rounds, and information gaps should be explicit.
-- Public event “X”: timeline of known reports, different narratives; note debunking or reversal leads if any.
-- Product “X”, last month: focus on after-sales and quality discussions; monitoring hints without absolute claims.
+## Environment Variables
 
-## FAQ
+| Variable | Description | Default |
+|----------|-------------|---------|
+| `DASHSCOPE_API_KEY` | Bailian (DashScope) API key | Required |
+| `DASHSCOPE_MODEL_NAME` | Chat model | `qwen3.7-max` |
+| `SESSION_REDIS_URL` | Redis URL | Required; defaults to `redis://127.0.0.1:6379/0` on ECS |
+| `HOST` / `PORT` | HTTP listen address | `0.0.0.0` / `8090` |
+| `CREATE_DEFAULT_SESSION` | When set to `1`, pre-build a Session named "Default" on startup | `0` (Compute Nest deployment uses `1`) |
 
-- **Invalid key / no search**: check `.env`, Web Search enabled on Bailian, network to Alibaba Cloud.
-- **Too few results**: richer keywords in the prompt, or adjust default orchestration in `agent.py` / try another model.
-- **Subtask JSON parse errors**: built-in fallbacks; may fall back to a default search plan.
+Copy and adjust as needed:
+
+```bash
+cp .env.example .env
+```
 
 ## References
 
-- [AgentScope docs](https://doc.agentscope.io/)
-- [AgentScope Runtime](https://runtime.agentscope.io/)
-- [Bailian Web Search MCP](https://help.aliyun.com/zh/model-studio/web-search-for-coding-plan)
+- [AgentScope Quickstart](https://docs.agentscope.io/en/v2/quickstart)
+- [Agent Service Documentation](https://docs.agentscope.io/v2/deploy/agent-service.md)
