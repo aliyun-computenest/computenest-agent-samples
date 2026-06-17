@@ -1,26 +1,29 @@
-# Stock Analyst
+# Stock Analyst — Intelligent Stock Analysis Assistant
 
-A stock-analysis sample built on [AgentScope Agent Service](https://docs.agentscope.io/v2/deploy/agent-service.md): Bailian WebSearch MCP + Deep Research system prompt. Output is for reference only and does **NOT** constitute licensed investment advice.
+A stock-analysis sample built on [Google ADK](https://github.com/google/adk-python): Bailian WebSearch MCP + Deep Research system prompt. Output is for reference only and does **NOT** constitute licensed investment advice.
 
 ## What This Is
 
 - Multi-round web search: step-by-step search around a ticker's market data, trend discussions, and risk-related information
 - Structured report: data analysis, multi-scenario trend assessment, and reference-only investment notes (with disclaimer)
-- **One-click deployment on Compute Nest**: in-browser Web UI (port 5173)
+- Official Google ADK API: single port **8000**, with built-in Web UI and `/run_sse` streaming API
+- Session persistence: connect to Redis via `SESSION_REDIS_URL`; otherwise use ADK default in-memory sessions
+- **One-click deployment on Compute Nest**: in-browser Web UI (port **8000**)
 
 ## Directory Structure
 
 ```text
 stock_analyst/
-├── main.py                 # Service entry
-├── client.py               # Local test: create Session + streaming chat
-├── server.sh               # Agent start / stop
-├── requirements.txt
-├── .env.example
-├── configs/mcp_config.json # Bailian WebSearch MCP
-└── tools/
-    ├── mcp_helpers.py
-    └── prompts.py          # Deep Research system prompt
+├── stock_analyst/
+│   ├── __init__.py           # Package marker, exposes root_agent
+│   └── agent.py              # Agent definition (name="stock_analyst")
+├── configs/
+│   └── mcp_config.json       # Bailian WebSearch MCP config
+├── services.py               # Registers Redis session backend
+├── server.sh                 # Start / stop script (local / container)
+├── requirements.txt          # Python dependencies
+├── .env.example              # Environment variables example
+└── .dockerignore             # Excludes .venv / .env / logs from Docker images
 ```
 
 ## Usage
@@ -29,26 +32,27 @@ stock_analyst/
 
 Deploy with one click via Alibaba Cloud Compute Nest — no local environment required:
 
-1. **Deploy Now**: open the [Compute Nest Stock Analyst deployment page](https://computenest.console.aliyun.com/agent/deploy/cn-hangzhou/StockAnalyst?serviceId=service-693904e6ce8943f49a3b&TemplateName=%E5%B8%82%E5%9C%BA%E6%A8%A1%E6%9D%BF) and click "Deploy Now".
+1. **Deploy Now**: open the [Compute Nest Stock Analyst deployment page](https://computenest.console.aliyun.com/agent/deploy/cn-hangzhou/StockAnalyst?serviceId=service-0682c63593ea443e900c&deployType=ECS&TemplateName=ECS%E7%89%88) and click "Deploy Now".
 2. **Fill in & Create**: provide parameters such as `DASHSCOPE_API_KEY` and click "Create Now".
-3. **Access the Instance**: on the instance page, check **Application Outputs** for the **WebUI Access URL** (port **5173**) and the **API Call Example** (`POST /chat/`).
+3. **Access the Instance**: on the instance page, check **Application Outputs** for the **WebUI Access URL** (port **8000**) and the **API Call Example**.
 
 After creation, the instance detail page's "Application Outputs" panel shows:
 
-- **WebUI Access URL**: open `http://<instance-ip>:5173` in your browser, using `demo_user` as Username.
-- **API Call Example**: send a message to `http://<instance-ip>:8090/chat/` with header `X-User-ID: demo_user`. The body must contain `agent_id=stock_analyst` and `session_id` (visible in the Web UI, or create one via `POST /sessions/`). OpenAPI: `http://<instance-ip>:8090/docs`.
+- **WebUI Access URL**: open `http://<instance-ip>:8000` and select the `stock_analyst` app.
+- **Code Debug Address** (cluster deployment): `http://<instance-ip>:8080` for online source viewing and debugging.
+- **API Call Example**: send an SSE request to `http://<instance-ip>:8000/run_sse` with `app_name=stock_analyst` and `user_id=user`. OpenAPI docs: `http://<instance-ip>:8000/docs`.
 
-**Redis (ECS)**: uses `SESSION_REDIS_URL` from environment variables; falls back to `redis://127.0.0.1:6379/0` when unset.
+**Sessions (ECS)**: the app uses in-memory sessions when `SESSION_REDIS_URL` is unset; for persistence on Compute Nest ECS, pre-fill `SESSION_REDIS_URL=redis://127.0.0.1:6379` in deployment env vars.
 
-**Redis (container cluster)**: `SESSION_REDIS_URL` MUST be configured in environment variables.
+**Sessions (cluster)**: a Session connection is required; sessions are persisted to Redis.
 
 ### Local Setup
 
 **Requirements**
 
-- Python ≥ 3.11
+- Python ≥ 3.12 (`computenest-agent-integrations` requirement)
 - [DashScope API Key](https://help.aliyun.com/zh/model-studio/)
-- Redis (must configure `SESSION_REDIS_URL`)
+- Optional Redis (persistent sessions when `SESSION_REDIS_URL` is set; in-memory otherwise)
 
 **Install & Start**
 
@@ -58,27 +62,27 @@ python3.12 -m venv .venv && source .venv/bin/activate
 pip install -r requirements.txt
 
 cp .env.example .env
-# Edit .env: DASHSCOPE_API_KEY, SESSION_REDIS_URL
+# Edit .env: DASHSCOPE_API_KEY; optionally SESSION_REDIS_URL
 
 chmod +x server.sh
 ./server.sh start
 ```
 
-- Service: http://127.0.0.1:8090
-- API docs: http://127.0.0.1:8090/docs
+- Service / Web UI: http://127.0.0.1:8000
+- API docs: http://127.0.0.1:8000/docs
 
 **Local Test Chat**
 
-In a separate terminal, run `client.py`: it uses the pre-registered `agent_id=stock_analyst` and creates a fresh Session per run.
+Open http://127.0.0.1:8000 , select the `stock_analyst` app, and ask for a stock analysis; or verify the service is ready:
 
 ```bash
-source .venv/bin/activate
-python client.py
+curl -fsS http://127.0.0.1:8000/list-apps
+# Expected: ["stock_analyst"]
 ```
 
-### Example Prompts
+**Example Prompts**
 
-- First retrieve the past week's public market data and news for Alibaba (9988.HK / BABA), then output a data analysis, trend forecast, and reference-only investment notes (including risks and disclaimer).
+- Search recent one-week public quotes and news for Alibaba (9988.HK / BABA), then output data analysis, trend outlook, and reference investment notes (with risks and disclaimer)
 
 ## Environment Variables
 
@@ -86,9 +90,9 @@ python client.py
 |----------|-------------|---------|
 | `DASHSCOPE_API_KEY` | Bailian (DashScope) API key | Required |
 | `DASHSCOPE_MODEL_NAME` | Chat model | `qwen3.7-max` |
-| `SESSION_REDIS_URL` | Redis URL | Required; defaults to `redis://127.0.0.1:6379/0` on ECS |
-| `HOST` / `PORT` | HTTP listen address | `0.0.0.0` / `8090` |
-| `CREATE_DEFAULT_SESSION` | When set to `1`, pre-build a Session named "Default" on startup | `0` (Compute Nest deployment uses `1`) |
+| `SESSION_REDIS_URL` | Redis URL; when unset, in-memory sessions | None (in-memory) |
+| `PORT` | HTTP listen port | `8000` |
+| `LOG_LEVEL` | Log level | `INFO` |
 
 Copy and adjust as needed:
 
@@ -98,5 +102,6 @@ cp .env.example .env
 
 ## References
 
-- [AgentScope Quickstart](https://docs.agentscope.io/en/v2/quickstart)
-- [Agent Service Documentation](https://docs.agentscope.io/v2/deploy/agent-service.md)
+- [Google ADK Python](https://github.com/google/adk-python)
+- [google-adk-redis](https://pypi.org/project/google-adk-redis/)
+- [computenest-agent-integrations](https://pypi.org/project/computenest-agent-integrations/)

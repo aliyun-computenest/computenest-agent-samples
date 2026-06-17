@@ -1,24 +1,26 @@
 # Conversation — Multi-turn Chat
 
-A conversation sample built on [AgentScope Agent Service](https://docs.agentscope.io/v2/deploy/agent-service.md): on service startup, a Credential and an Agent are created automatically, and a default Session can be pre-built on demand.
+A conversation sample built on [Google ADK](https://github.com/google/adk-python): `adk web` loads the `conversation` agent and supports multi-turn sessions.
 
 ## What This Is
 
 - Smart chat: polite Chinese replies with multi-turn context support
-- Service bootstrap: once `DASHSCOPE_API_KEY` is configured, Credential and Agent are created automatically
-- **One-click deployment on Compute Nest**: in-browser Web UI (port 5173); a pre-built Session "Default" is provided for out-of-the-box chatting
-
+- Official Google ADK API: single port **8000**, with built-in Web UI and `/run_sse` streaming API
+- Session persistence: connect to Redis directly via `SESSION_REDIS_URL`; otherwise use ADK default in-memory sessions (lost on restart)
+- **One-click deployment on Compute Nest**: in-browser Web UI (port **8000**)
 
 ## Directory Structure
 
 ```text
 conversation/
-├── main.py            # Service entry (creates Credential / Agent / optional Session)
-├── client.py          # Local API test: creates a Session and sends two-turn chat
-├── server.sh          # Agent start / stop
-├── requirements.txt   # Python dependencies
-├── .env.example       # Environment variables example
-└── .dockerignore      # Excludes .venv / .env / logs from Docker images
+├── conversation/
+│   ├── __init__.py        # Package marker, exposes root_agent
+│   └── agent.py           # Agent definition (name="conversation")
+├── services.py            # Registers Redis session backend
+├── server.sh              # Start / stop script (local / container)
+├── requirements.txt       # Python dependencies
+├── .env.example           # Environment variables example
+└── .dockerignore          # Excludes .venv / .env / logs from Docker images
 ```
 
 ## Usage
@@ -27,18 +29,19 @@ conversation/
 
 Deploy with one click via Alibaba Cloud Compute Nest — no local environment required:
 
-1. **Deploy Now**: open the [Compute Nest Conversation deployment page](https://computenest.console.aliyun.com/agent/deploy/cn-hangzhou/Conversation?serviceId=service-9503f4817acb4f08b948&deployType=ECS&TemplateName=%E6%A8%A1%E6%9D%BF1) and click "Deploy Now".
+1. **Deploy Now**: open the [Compute Nest Conversation deployment page](https://computenest.console.aliyun.com/agent/deploy/cn-hangzhou/Conversation?serviceId=service-0682c63593ea443e900c&deployType=ECS&TemplateName=ECS%E7%89%88) and click "Deploy Now".
 2. **Fill in & Create**: provide parameters such as `DASHSCOPE_API_KEY` and click "Create Now".
-3. **Access the Instance**: on the instance page, check **Application Outputs** for the **WebUI Access URL** (port **5173**) and the **API Call Example** (`POST /chat/`).
+3. **Access the Instance**: on the instance page, check **Application Outputs** for the **WebUI Access URL** (port **8000**) and the **API Call Example**.
 
 After creation, the instance detail page's "Application Outputs" panel shows:
 
-- **WebUI Access URL**: open `http://<instance-ip>:5173` in your browser, using `demo_user` as Username.
-- **API Call Example**: send a message to `http://<instance-ip>:8090/chat/` with header `X-User-ID: demo_user`. The body must contain `agent_id=conversation` and `session_id` (visible in the Web UI, or create one via `POST /sessions/`). OpenAPI: `http://<instance-ip>:8090/docs`.
+- **WebUI Access URL**: open `http://<instance-ip>:8000` in your browser and select the `conversation` app to chat.
+- **Code Debug Address** (cluster deployment): `http://<instance-ip>:8080` for online source viewing and debugging.
+- **API Call Example**: send an SSE request to `http://<instance-ip>:8000/run_sse` with `app_name=conversation` and `user_id=user` (matches the ADK Web UI default). OpenAPI docs: `http://<instance-ip>:8000/docs`.
 
-**Redis (ECS)**: uses `SESSION_REDIS_URL` from environment variables; falls back to `redis://127.0.0.1:6379/0` when unset.
+**Sessions (ECS)**: the app uses in-memory sessions when `SESSION_REDIS_URL` is unset; for persistence on Compute Nest ECS, pre-fill `SESSION_REDIS_URL=redis://127.0.0.1:6379` in deployment env vars (host Redis).
 
-**Redis (container cluster)**: `SESSION_REDIS_URL` MUST be configured in environment variables.
+**Sessions (cluster)**: a Session connection is required; sessions are persisted to Redis.
 
 ### Local Setup
 
@@ -46,7 +49,7 @@ After creation, the instance detail page's "Application Outputs" panel shows:
 
 - Python ≥ 3.11
 - [DashScope API Key](https://help.aliyun.com/zh/model-studio/)
-- Redis (must configure `SESSION_REDIS_URL`, see below)
+- Optional Redis (persistent sessions when `SESSION_REDIS_URL` is set; in-memory otherwise)
 
 **Install & Start**
 
@@ -56,31 +59,23 @@ python3.12 -m venv .venv && source .venv/bin/activate
 pip install -r requirements.txt
 
 cp .env.example .env
-# Edit .env: DASHSCOPE_API_KEY, SESSION_REDIS_URL
+# Edit .env: DASHSCOPE_API_KEY; optionally SESSION_REDIS_URL
 
 chmod +x server.sh
 ./server.sh start
 ```
 
-- Service: http://127.0.0.1:8090
-- API docs: http://127.0.0.1:8090/docs
-
-If you do not have Redis locally, start an instance first and write the URL into `.env`, e.g.:
-
-```bash
-export SESSION_REDIS_URL=redis://localhost:6379/0
-```
+- Service / Web UI: http://127.0.0.1:8000
+- API docs: http://127.0.0.1:8000/docs
 
 **Local Test Chat**
 
-In a separate terminal, run `client.py`: it uses the pre-registered `agent_id=conversation`; each run creates a fresh Session (with its own `workspace_id`) and sends two messages within the same session to test multi-turn memory.
+Open http://127.0.0.1:8000 in your browser, select the `conversation` app, and chat; or verify the service is ready:
 
 ```bash
-source .venv/bin/activate
-python client.py
+curl -fsS http://127.0.0.1:8000/list-apps
+# Expected: ["conversation"]
 ```
-
-For local development, use `client.py` to test chat. The Web UI is only accessible on a Compute Nest instance via the address shown in "Application Outputs" (port 5173).
 
 ## Environment Variables
 
@@ -88,9 +83,9 @@ For local development, use `client.py` to test chat. The Web UI is only accessib
 |----------|-------------|---------|
 | `DASHSCOPE_API_KEY` | Bailian (DashScope) API key | Required |
 | `DASHSCOPE_MODEL_NAME` | Chat model | `qwen3.7-max` |
-| `SESSION_REDIS_URL` | Redis URL | Required; defaults to `redis://127.0.0.1:6379/0` on ECS |
-| `HOST` / `PORT` | HTTP listen address | `0.0.0.0` / `8090` |
-| `CREATE_DEFAULT_SESSION` | When set to `1`, create a Session named "Default" on every service start (id auto-generated) | `0` (Compute Nest deployment uses `1`) |
+| `SESSION_REDIS_URL` | Redis URL; when unset, in-memory sessions | None (in-memory) |
+| `PORT` | HTTP listen port | `8000` |
+| `LOG_LEVEL` | Log level | `INFO` |
 
 Copy and adjust as needed:
 
@@ -100,5 +95,5 @@ cp .env.example .env
 
 ## References
 
-- [AgentScope Quickstart](https://docs.agentscope.io/en/v2/quickstart)
-- [Agent Service Documentation](https://docs.agentscope.io/v2/deploy/agent-service.md)
+- [Google ADK Python](https://github.com/google/adk-python)
+- [google-adk-redis](https://pypi.org/project/google-adk-redis/)

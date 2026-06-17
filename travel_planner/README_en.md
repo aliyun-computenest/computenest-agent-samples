@@ -1,30 +1,33 @@
-# Travel Planner Assistant
+# Travel Planner — Intelligent Travel Assistant
 
-A travel planning sample built on [AgentScope Agent Service](https://docs.agentscope.io/v2/deploy/agent-service.md): Amap MCP + local travel knowledge + multi-turn chat.
+A travel planning sample built on [Google ADK](https://github.com/google/adk-python): `adk web` loads the `travel_planner` agent; configure `SESSION_REDIS_URL` to persist sessions via [google-adk-redis](https://pypi.org/project/google-adk-redis/).
 
 ## What This Is
 
-- Itinerary planning: combines destination knowledge, routes, and POIs to generate daily plans with dining and lodging
-- Amap MCP: routing, nearby search, real-time traffic, and other geographic information
-- Local knowledge: travel safety guides and off-the-beaten-path attractions under `knowledgebase_docs/`
-- **One-click deployment on Compute Nest**: in-browser Web UI (port 5173)
+- Itinerary planning: daily schedules with dining and accommodation recommendations
+- Amap maps: route planning, nearby POI search, real-time traffic and weather
+- Local knowledge: travel safety tips and niche attraction recommendations
+- Official Google ADK API: single port **8000**, with built-in Web UI and `/run_sse` streaming API
+- Session persistence: connect to Redis directly via `SESSION_REDIS_URL`; otherwise use ADK default in-memory sessions (lost on restart)
+- **One-click deployment on Compute Nest**: in-browser Web UI (port **8000**)
 
 ## Directory Structure
 
 ```text
 travel_planner/
-├── main.py                 # Service entry
-├── client.py               # Local test: create Session + streaming chat
-├── server.sh               # Agent start / stop
-├── requirements.txt
-├── .env.example
-├── configs/mcp_config.json # Amap MCP (Bailian amap-maps)
-├── knowledgebase_docs/     # Travel knowledge in Markdown
+├── travel_planner/
+│   ├── __init__.py           # Package marker, exposes root_agent
+│   └── agent.py              # Agent definition (name="travel_planner")
+├── configs/
+│   └── mcp_config.json       # Bailian amap-maps MCP config
+├── knowledgebase_docs/       # Travel knowledge Markdown
 │   ├── general_safety_guide.md
 │   └── tourists_recommend.md
-└── tools/
-    ├── mcp_helpers.py
-    └── prompts.py
+├── services.py               # Registers Redis session backend
+├── server.sh                 # Start / stop script (local / container)
+├── requirements.txt          # Python dependencies
+├── .env.example              # Environment variables example
+└── .dockerignore             # Excludes .venv / .env / logs from Docker images
 ```
 
 ## Usage
@@ -33,27 +36,28 @@ travel_planner/
 
 Deploy with one click via Alibaba Cloud Compute Nest — no local environment required:
 
-1. **Deploy Now**: open the [Compute Nest Travel Planner deployment page](https://computenest.console.aliyun.com/agent/deploy/cn-hangzhou/TravelPlanner?serviceId=service-693904e6ce8943f49a3b&TemplateName=%E5%B8%82%E5%9C%BA%E6%A8%A1%E6%9D%BF) and click "Deploy Now".
-2. **Fill in & Create**: provide parameters such as `DASHSCOPE_API_KEY` and click "Create Now".
-3. **Access the Instance**: on the instance page, check **Application Outputs** for the **WebUI Access URL** (port **5173**) and the **API Call Example** (`POST /chat/`).
+1. **Deploy Now**: open the [Compute Nest Travel Planner deployment page](https://computenest.console.aliyun.com/agent/deploy/cn-hangzhou/TravelPlanner?serviceId=service-0682c63593ea443e900c&deployType=ECS&TemplateName=ECS%E7%89%88) and click "Deploy Now".
+2. **Fill in & Create**: provide parameters such as `DASHSCOPE_API_KEY`, ensure **amap-maps** MCP is enabled in Bailian, and click "Create Now".
+3. **Access the Instance**: on the instance page, check **Application Outputs** for the **WebUI Access URL** (port **8000**) and the **API Call Example**.
 
 After creation, the instance detail page's "Application Outputs" panel shows:
 
-- **WebUI Access URL**: open `http://<instance-ip>:5173` in your browser, using `demo_user` as Username.
-- **API Call Example**: send a message to `http://<instance-ip>:8090/chat/` with header `X-User-ID: demo_user`. The body must contain `agent_id=travel_planner` and `session_id` (visible in the Web UI, or create one via `POST /sessions/`). OpenAPI: `http://<instance-ip>:8090/docs`.
+- **WebUI Access URL**: open `http://<instance-ip>:8000` in your browser and select the `travel_planner` app to plan a trip.
+- **Code Debug Address** (cluster deployment): `http://<instance-ip>:8080` for online source viewing and debugging.
+- **API Call Example**: send an SSE request to `http://<instance-ip>:8000/run_sse` with `app_name=travel_planner` and `user_id=user` (matches the ADK Web UI default). OpenAPI docs: `http://<instance-ip>:8000/docs`.
 
-**Redis (ECS)**: uses `SESSION_REDIS_URL` from environment variables; falls back to `redis://127.0.0.1:6379/0` when unset.
+**Sessions (ECS)**: the app uses in-memory sessions when `SESSION_REDIS_URL` is unset; for persistence on Compute Nest ECS, pre-fill `SESSION_REDIS_URL=redis://127.0.0.1:6379` in deployment env vars (host Redis).
 
-**Redis (container cluster)**: `SESSION_REDIS_URL` MUST be configured in environment variables.
+**Sessions (cluster)**: a Session connection is required; sessions are persisted to Redis.
 
 ### Local Setup
 
 **Requirements**
 
-- Python ≥ 3.11
+- Python ≥ 3.12 (`computenest-agent-integrations` requirement)
 - [DashScope API Key](https://help.aliyun.com/zh/model-studio/)
-- Redis (must configure `SESSION_REDIS_URL`)
-- **amap-maps** activated in the [Bailian MCP Marketplace](https://bailian.console.aliyun.com/?tab=app#/mcp-market/detail/amap-maps)
+- **amap-maps** enabled in [Bailian MCP Market](https://bailian.console.aliyun.com/?tab=app#/mcp-market/detail/amap-maps)
+- Optional Redis (persistent sessions when `SESSION_REDIS_URL` is set; in-memory otherwise)
 
 **Install & Start**
 
@@ -63,28 +67,23 @@ python3.12 -m venv .venv && source .venv/bin/activate
 pip install -r requirements.txt
 
 cp .env.example .env
-# Edit .env: DASHSCOPE_API_KEY, SESSION_REDIS_URL
+# Edit .env: DASHSCOPE_API_KEY; optionally SESSION_REDIS_URL
 
 chmod +x server.sh
 ./server.sh start
 ```
 
-- Service: http://127.0.0.1:8090
-- API docs: http://127.0.0.1:8090/docs
+- Service / Web UI: http://127.0.0.1:8000
+- API docs: http://127.0.0.1:8000/docs
 
 **Local Test Chat**
 
-In a separate terminal, run `client.py`: it uses the pre-registered `agent_id=travel_planner` and creates a fresh Session per run.
+Open http://127.0.0.1:8000 in your browser, select the `travel_planner` app, and ask for a travel plan; or verify the service is ready:
 
 ```bash
-source .venv/bin/activate
-python client.py
+curl -fsS http://127.0.0.1:8000/list-apps
+# Expected: ["travel_planner"]
 ```
-
-### Example Prompts
-
-- Plan a 5-day, 4-night trip to Harbin around New Year, covering Harbin Ice and Snow World, Central Street, and Northeast cuisine.
-- For a 3-day Qingming-holiday trip to Hangzhou — beyond West Lake and Lingyin Temple, I want to add a 1-day hike at Xixi Wetland. How should I arrange each day?
 
 ## Environment Variables
 
@@ -92,9 +91,9 @@ python client.py
 |----------|-------------|---------|
 | `DASHSCOPE_API_KEY` | Bailian (DashScope) API key | Required |
 | `DASHSCOPE_MODEL_NAME` | Chat model | `qwen3.7-max` |
-| `SESSION_REDIS_URL` | Redis URL | Required; defaults to `redis://127.0.0.1:6379/0` on ECS |
-| `HOST` / `PORT` | HTTP listen address | `0.0.0.0` / `8090` |
-| `CREATE_DEFAULT_SESSION` | When set to `1`, pre-build a Session named "Default" on startup | `0` (Compute Nest deployment uses `1`) |
+| `SESSION_REDIS_URL` | Redis URL; when unset, in-memory sessions | None (in-memory) |
+| `PORT` | HTTP listen port | `8000` |
+| `LOG_LEVEL` | Log level | `INFO` |
 
 Copy and adjust as needed:
 
@@ -104,5 +103,7 @@ cp .env.example .env
 
 ## References
 
-- [AgentScope Quickstart](https://docs.agentscope.io/en/v2/quickstart)
-- [Agent Service Documentation](https://docs.agentscope.io/v2/deploy/agent-service.md)
+- [Google ADK Python](https://github.com/google/adk-python)
+- [google-adk-redis](https://pypi.org/project/google-adk-redis/)
+- [computenest-agent-integrations](https://pypi.org/project/computenest-agent-integrations/)
+- [Bailian amap-maps MCP](https://bailian.console.aliyun.com/?tab=app#/mcp-market/detail/amap-maps)
