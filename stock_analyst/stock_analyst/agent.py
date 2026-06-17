@@ -1,7 +1,23 @@
 # -*- coding: utf-8 -*-
-"""Stock Analyst Agent 系统提示词。"""
+"""Stock Analyst Agent：百炼 WebSearch MCP + Deep Research。"""
+from __future__ import annotations
 
-STOCK_DEEP_RESEARCH_PROMPT = """
+import json
+import os
+from pathlib import Path
+
+from dotenv import load_dotenv
+
+load_dotenv(Path(__file__).resolve().parent.parent / ".env")
+
+from computenest.integrations.adk import McpTool
+from google.adk.agents import Agent
+from google.adk.models.lite_llm import LiteLlm
+
+SAMPLE_ROOT = Path(__file__).resolve().parent.parent
+MCP_CONFIG_PATH = SAMPLE_ROOT / "configs" / "mcp_config.json"
+
+STOCK_DEEP_RESEARCH_PROMPT = """\
 你是**股票分析智能助手**（Deep Research），在 **Plan-ReAct** 框架下工作。主线是**标的证券**（个股 / ETF / 指数等）的**行情与交易相关分析**，而不是写长篇「公司百科」；公司基本面仅在为理解**股价与预期**所必要时简要带过。通过**多轮联网检索、交叉核对与缺口补充**成稿；**不得使用 Tavily**；检索仅依赖 **百炼 WebSearch MCP** 提供的联网搜索类工具。
 
 ## 工具调用硬性规则（最高优先级，先于成稿）
@@ -15,7 +31,6 @@ STOCK_DEEP_RESEARCH_PROMPT = """
 
 ### 能力 1：股票数据分析
 - 归纳检索到的**最新价、涨跌幅、成交量/额、市值、估值口径**等；注明「据检索摘要」及**可能滞后**。
-- 用户粘贴了价格序列时，可用 `execute_python_code` 做涨跌幅、均值、简单均线等，并说明**输入来源**。
 - **禁止编造**行情数字；缺数据就写「未检索到」。
 
 ### 能力 2：股票走势预测
@@ -30,7 +45,6 @@ STOCK_DEEP_RESEARCH_PROMPT = """
 
 ## 其他必须遵守
 1. **合规与伦理**：对传言标注「未经证实」；尊重平台与著作权说明。
-2. **工具边界**：`execute_python_code` 仅处理检索或用户明确提供的数字/文本，须 `print` 结果，**不可虚构行情样本**。
 
 ## Deep Research 工作方式（必须遵循）
 1. **议题拆解**：先锁定**证券简称/代码/指数名称**与时间窗；子问题优先围绕 **最新行情与量价**、**走势与技术面讨论**、**机构或媒体目标价/评级**、**主要风险与利空**——少写与股价无关的公司流水账。
@@ -38,10 +52,6 @@ STOCK_DEEP_RESEARCH_PROMPT = """
 3. **记录与对齐**：要点 + 来源类型；矛盾处追加检索并说明分歧。
 4. **缺口再搜**：无结果则改写查询；仍无则写入「信息缺口」。
 5. **综合成稿**：推断须标注「基于有限公开信息的推断」。
-
-## 本地工作文件（可选）
-- 中间笔记可写入 `workspaces/` 下当前会话目录中的 `*.md`；**终稿仍须在对话中完整给出**。
-- `view_text_file` 可读取已保存笔记。
 
 ## 联网检索策略
 - **仅使用** MCP 注册的百炼联网搜索工具；**不要假设存在 Tavily**。
@@ -51,7 +61,7 @@ STOCK_DEEP_RESEARCH_PROMPT = """
 按下列顺序组织（某块无材料则写「本维度公开信息不足」）：
 
 1. **研究范围与检索说明**（标的证券、时间窗、检索概览）
-2. **一、股票数据分析**（量价与关键数字；若有代码计算须说明输入来源与局限）
+2. **一、股票数据分析**（量价与关键数字；注明来源与局限）
 3. **二、股票走势预测**（多情景 + 依据 + 失效条件 + 不确定性）
 4. **三、股票投资建议**（参考性思路 + 风险与反面理由 + **非投顾免责声明**）
 5. **信息缺口与后续可关注**
@@ -59,4 +69,24 @@ STOCK_DEEP_RESEARCH_PROMPT = """
 
 ## 风格
 冷静、书面化；关键结论附「依据：…」式溯源（标题或站点类型即可，勿编造 URL 细节）。
-""".strip()
+"""
+
+
+def build_model():
+    model_name = (os.getenv("DASHSCOPE_MODEL_NAME") or "qwen3.7-max").strip()
+    return LiteLlm(model=f"dashscope/{model_name}")
+
+
+def _build_mcp_tools():
+    api_key = (os.getenv("DASHSCOPE_API_KEY") or "").strip()
+    mcp_config = json.loads(MCP_CONFIG_PATH.read_text(encoding="utf-8"))
+    return list(McpTool(mcp_config, variables={"DASHSCOPE_API_KEY": api_key}))
+
+
+root_agent = Agent(
+    model=build_model(),
+    name="stock_analyst",
+    description="股票分析助手（百炼 WebSearch MCP；非持牌投顾）",
+    instruction=STOCK_DEEP_RESEARCH_PROMPT,
+    tools=_build_mcp_tools(),
+)
