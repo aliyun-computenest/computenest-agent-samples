@@ -1,15 +1,8 @@
-# 环境变量（.env）
-python-dotenv>=1.0.0
-
-# AgentScope 框架与 Runtime
-agentscope>=1.0.0
-agentscope-runtime>=1.1.0
-
-# 百炼知识库 SDK
-alibabacloud-bailian20231229>=1.0.0
-
-# Redis 客户端（当 SESSION_TYPE=redis 时使用）
-redis>=5.0.0
-
-# 测试客户端
-httpx>=0.27.0
+computenest-agent-integrations[e2b]==0.1.2
+google-adk==2.2.0
+google-adk-redis==0.1.5
+litellm==1.88.1
+python-dotenv==1.2.2
+uvicorn==0.49.0
+fastapi==0.136.3
+httpx==0.28.1

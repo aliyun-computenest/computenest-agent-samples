@@ -1,0 +1,14 @@
+# 本地开发产物
+.env
+.env.*
+!.env.example
+.agent.pid
+server.log
+**/__pycache__/
+**/*.pyc
+**/*.pyo
+.venv/
+
+# IDE
+.idea/
+.vscode/
