@@ -1,0 +1,12 @@
+google-adk>=2.2.0
+google-adk-redis==0.1.5
+litellm>=1.80.11
+python-dotenv>=1.0.0
+pysqlite3-binary>=0.5.0
+# E2B 沙箱运行时（computenest-agent-integrations 的可选依赖，需显式安装）
+# e2b==2.21.0 + e2b-code-interpreter==2.6.2 是经过验证的与 ACSSandbox 私有化部署兼容的版本组合
+e2b==2.21.0
+e2b-code-interpreter==2.6.2
+computenest-agent-integrations==0.1.4
+# AgentRun 沙箱运行时（AGENTRUN_ACCOUNT_ID 设置时使用）
+agentrun-sdk>=0.0.50

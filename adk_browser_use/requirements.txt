@@ -1,0 +1,12 @@
+google-adk>=2.2.0
+google-adk-redis==0.1.5
+litellm>=1.80.11
+python-dotenv>=1.0.0
+pysqlite3-binary>=0.5.0
+# E2B 浏览器沙箱运行时（computenest-agent-integrations 的可选依赖，需显式安装）
+e2b==2.21.0
+# Playwright 用于浏览器自动化（E2B 模式下需要）
+playwright>=1.40.0
+computenest-agent-integrations==0.1.6
+# AgentRun 沙箱运行时（AGENTRUN_ACCOUNT_ID 设置时使用）
+agentrun-sdk>=0.0.50
