@@ -61,7 +61,7 @@ E2B_API_KEY=...
 FC_E2B_REGION=cn-beijing
 ```
 
-OSS 持久化默认关闭。通过计算巢部署时，开启 OSS 后只需选择与 FC Sandbox 同地域的标准存储 Bucket；ROS 会自动创建专用 RAM Role、授予目标 Bucket 读写权限，并生成内网 Endpoint。手工启动时仍需自行配置 `FC_OSS_BUCKET`、`FC_OSS_ENDPOINT` 和 `FC_OSS_ROLE_ARN`。完整的 ECS 与容器部署说明见 [`deploy/README.md`](./deploy/README.md)。
+OSS 持久化默认关闭。通过计算巢部署时，开启 OSS 后只需选择与 FC Sandbox 同地域的标准存储 Bucket；ROS 会自动创建专用 RAM Role、授予目标 Bucket 读写权限，并生成内网 Endpoint。手工启动时仍需自行配置 `FC_OSS_BUCKET`、`FC_OSS_ENDPOINT` 和 `FC_OSS_ROLE_ARN`。
 
 开发模式同时启动 API 和 Vite：
 

@@ -35,8 +35,6 @@ server.sh                     Local process manager
 .env.example                 Environment variable reference
 ```
 
-Container and Compute Nest deployment instructions are available in [`deploy/README.md`](./deploy/README.md).
-
 ## Local Development
 
 Requirements: Node.js 22 or newer and access to the configured FC Agent Sandbox deployment.
