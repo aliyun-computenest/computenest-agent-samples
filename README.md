@@ -12,5 +12,6 @@
 | `knowledge_rag/` | 企业知识库智能问答（百炼 RAG） |
 | `browser_use/` | 智能浏览器操控（Playwright MCP + 云端沙箱） |
 | `agent_research/` | AI 搜学助手（Playwright + 可视化报告） |
+| `codeagent_fc_sandbox/` | CodeAgent 云开发助手（Claude Code + FC 云沙箱） |
 
 各子目录独立运行，详见对应 `README.md`。

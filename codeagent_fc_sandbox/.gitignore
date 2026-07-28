@@ -1,0 +1,21 @@
+# Python-generated files
+__pycache__/
+*.py[oc]
+build/
+dist/
+wheels/
+*.egg-info
+node_modules/
+.DS_Store
+.idea/
+.obsidian/
+.qoder/
+
+# Virtual environments
+.venv
+.env
+.env.*
+!.env.example
+runs/
+data/
+*.egg-info/

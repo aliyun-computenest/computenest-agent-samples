@@ -1,0 +1,52 @@
+{
+  "name": "codeagent-sandbox-demo",
+  "version": "0.2.0",
+  "private": true,
+  "type": "module",
+  "workspaces": [
+    "src/apps/*",
+    "packages/*"
+  ],
+  "scripts": {
+    "dev": "concurrently -n api,web -c blue,green \"npm run dev:api\" \"npm run dev:web\"",
+    "dev:api": "npm run build:packages && tsx watch src/apps/api/src/index.ts",
+    "dev:web": "vite --host 127.0.0.1 --port 5174 --config src/apps/web/vite.config.ts",
+    "build": "npm run build:packages && npm run build:api && npm run build:web",
+    "build:packages": "npm run build -w @codeagent-sandbox-demo/core && npm run build -w @codeagent-sandbox-demo/fc-e2b-provider",
+    "build:api": "tsc -p src/apps/api/tsconfig.json",
+    "build:web": "vite build --config src/apps/web/vite.config.ts",
+    "fc:e2b:smoke": "node tools/fc-e2b/smoke.mjs",
+    "fc:e2b:recovery-smoke": "npm run build:packages && npm run build:api && node tools/fc-e2b/recovery-smoke.mjs",
+    "fc:e2b:api-restart-smoke": "npm run build && node tools/fc-e2b/api-restart-smoke.mjs",
+    "fc:e2b:preview-smoke": "npm run build:packages && node tools/fc-e2b/preview-smoke.mjs",
+    "fc:e2b:oss-replacement-smoke": "npm run build:packages && npm run build:api && node tools/fc-e2b/oss-replacement-smoke.mjs",
+    "start": "node src/apps/api/dist/index.js",
+    "test": "npm run build:packages && npm run build:api && node --test tests/*.test.mjs",
+    "typecheck": "npm run build:packages && tsc -p src/apps/api/tsconfig.json --noEmit && tsc -p src/apps/web/tsconfig.json --noEmit"
+  },
+  "dependencies": {
+    "@fastify/cors": "^11.2.0",
+    "@fastify/static": "^8.3.0",
+    "@sandbox-agent/react": "0.4.0",
+    "@vitejs/plugin-react": "^5.1.1",
+    "dotenv": "^17.2.3",
+    "e2b": "2.31.0",
+    "fastify": "^5.6.2",
+    "lucide-react": "^0.561.0",
+    "marked": "^17.0.1",
+    "react": "^19.2.3",
+    "react-dom": "^19.2.3",
+    "sandbox-agent": "0.4.0",
+    "undici": "^6.27.0",
+    "vite": "^7.3.0",
+    "zod": "^4.2.1"
+  },
+  "devDependencies": {
+    "@types/node": "^24.10.2",
+    "@types/react": "^19.2.7",
+    "@types/react-dom": "^19.2.3",
+    "concurrently": "^9.2.1",
+    "tsx": "^4.21.0",
+    "typescript": "^5.9.3"
+  }
+}
